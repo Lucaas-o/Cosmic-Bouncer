@@ -12,34 +12,50 @@ let animationId;
 let isPaused = false;
 let mouse = { x: width / 2, y: height / 2 };
 let speedMultiplier = 1;
-let ballCount = 30;
-const GRAVITY = { enabled: false, amount: 0.1 };
-const ATTRACTION = { enabled: false, distance: 100, factor: 0.02 };
+let ballCount = 25; // Added ballCount
 
-// Utility functions
-const random = (min, max) => Math.random() * (max - min) + min;
-const randomInt = (min, max) => Math.floor(random(min, max));
-const randomColor = () => `rgb(${randomInt(0, 256)}, ${randomInt(0, 256)}, ${randomInt(0, 256)})`;
+// FPS variables
+let fps = 0;
+let lastFrameTime = performance.now();
 
-// Ball class
-class Ball {
-    constructor(x, y, velX, velY, color, size) {
-        this.x = x;
-        this.y = y;
-        this.velX = velX;
-        this.velY = velY;
-        this.color = color;
-        this.size = size;
-    }
+const attraction = {
+    enabled: false,
+    distance: 100,
+    factor: 0.02
+};
 
-    draw() {
+const GRAVITY = {
+    enabled: false,
+    amount: 0.1
+};
+
+// Function to generate random numbers
+function random(min, max) {
+    return Math.floor(Math.random() * (max - min)) + min;
+}
+
+// Function to generate random colors
+function randomColor() {
+    return `rgb(${random(0, 255)}, ${random(0, 255)}, ${random(0, 255)})`;
+}
+
+// Ball constructor
+function Ball(x, y, velX, velY, color, size) {
+    this.x = x;
+    this.y = y;
+    this.velX = velX;
+    this.velY = velY;
+    this.color = color;
+    this.size = size;
+
+    this.draw = function() {
         ctx.beginPath();
         ctx.fillStyle = this.color;
         ctx.arc(this.x, this.y, this.size, 0, 2 * Math.PI);
         ctx.fill();
-    }
+    };
 
-    update() {
+    this.update = function() {
         if (GRAVITY.enabled) this.velY += GRAVITY.amount;
 
         if (this.x + this.size >= width) this.velX = -Math.abs(this.velX);
@@ -47,12 +63,12 @@ class Ball {
         if (this.y + this.size >= height) this.velY = -Math.abs(this.velY);
         if (this.y - this.size <= 0) this.velY = Math.abs(this.velY);
 
-        if (ATTRACTION.enabled) {
+        if (attraction.enabled) {
             const dx = mouse.x - this.x;
             const dy = mouse.y - this.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
-            if (distance < ATTRACTION.distance) {
-                const force = ATTRACTION.factor * (1 - distance / ATTRACTION.distance);
+            if (distance < attraction.distance) {
+                const force = attraction.factor * (1 - distance / attraction.distance);
                 this.velX += dx * force;
                 this.velY += dy * force;
             }
@@ -60,9 +76,9 @@ class Ball {
 
         this.x += this.velX * speedMultiplier;
         this.y += this.velY * speedMultiplier;
-    }
+    };
 
-    collisionDetect() {
+    this.collisionDetect = function() {
         for (const ball of balls) {
             if (this !== ball) {
                 const dx = this.x - ball.x;
@@ -73,16 +89,16 @@ class Ball {
                 }
             }
         }
-    }
+    };
 }
 
 // Attraction visualization with cursor
 const drawAttraction = () => {
-    if (!ATTRACTION.enabled) return;
+    if (!attraction.enabled) return;
 
     // Draw attraction range (faint circle)
     ctx.beginPath();
-    ctx.arc(mouse.x, mouse.y, ATTRACTION.distance, 0, 2 * Math.PI);
+    ctx.arc(mouse.x, mouse.y, attraction.distance, 0, 2 * Math.PI);
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
     ctx.lineWidth = 1;
     ctx.stroke();
@@ -97,11 +113,26 @@ const drawAttraction = () => {
     ctx.stroke();
 };
 
+// Draw FPS counter
+const drawFPS = () => {
+    ctx.fillStyle = 'white';
+    ctx.font = '16px Arial';
+    ctx.fillText(`FPS: ${Math.round(fps)}`, 10, 20);
+};
+
 // Animation loop
 const loop = () => {
+    // Calculate FPS
+    const now = performance.now();
+    const deltaTime = now - lastFrameTime;
+    fps = 1000 / deltaTime; // FPS = 1000ms / time between frames
+    lastFrameTime = now;
+
+    // Clear canvas
     ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
     ctx.fillRect(0, 0, width, height);
 
+    // Maintain ball count
     while (balls.length < ballCount) {
         balls.push(new Ball(
             random(0, width),
@@ -114,14 +145,18 @@ const loop = () => {
     }
     while (balls.length > ballCount) balls.pop();
 
+    // Update and draw balls
     balls.forEach(ball => {
         ball.draw();
         ball.update();
         ball.collisionDetect();
     });
 
+    // Draw attraction and FPS
     drawAttraction();
+    drawFPS();
 
+    // Continue loop if not paused
     if (!isPaused) animationId = requestAnimationFrame(loop);
 };
 
@@ -147,38 +182,18 @@ document.getElementById('speedBtn').addEventListener('click', (e) => {
 });
 
 document.getElementById('attractionBtn').addEventListener('click', (e) => {
-    buttonClickEffect(e.target); // Added click effect here
-    ATTRACTION.enabled = !ATTRACTION.enabled;
-    e.target.textContent = `Attraction: ${ATTRACTION.enabled ? 'ON' : 'OFF'}`;
-    e.target.style.backgroundColor = ATTRACTION.enabled ? '#555' : '#333';
-});
-
-document.getElementById('gravityBtn').addEventListener('click', (e) => {
-    buttonClickEffect(e.target); // Added click effect here
-    GRAVITY.enabled = !GRAVITY.enabled;
-    e.target.textContent = `Gravity: ${GRAVITY.enabled ? 'ON' : 'OFF'}`;
-    e.target.style.backgroundColor = GRAVITY.enabled ? '#555' : '#333';
-});
-
-document.getElementById('ballsBtn').addEventListener('click', (e) => {
     buttonClickEffect(e.target);
-    ballCount = ballCount === 30 ? 50 : ballCount === 50 ? 100 : ballCount === 100 ? 10 : 30;
-    e.target.textContent = `Amount: ${ballCount}`;
+    attraction.enabled = !attraction.enabled;
+    e.target.textContent = `Attraction: ${attraction.enabled ? 'ON' : 'OFF'}`;
+    e.target.style.backgroundColor = attraction.enabled ? '#555' : '#333';
+    canvas.style.cursor = attraction.enabled ? 'none' : 'default';
 });
 
-canvas.addEventListener('mousemove', (e) => {
-    mouse.x = e.clientX;
-    mouse.y = e.clientY;
+// Event to detect mouse movement
+canvas.addEventListener('mousemove', function (event) {
+    mouse.x = event.clientX;
+    mouse.y = event.clientY;
 });
 
-window.addEventListener('resize', () => {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-    balls.forEach(ball => {
-        ball.x = Math.min(ball.x, canvas.width);
-        ball.y = Math.min(ball.y, canvas.height);
-    });
-});
-
-// Start animation
+// Start the animation loop
 loop();
